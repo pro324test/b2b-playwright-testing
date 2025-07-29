@@ -1,0 +1,34 @@
+.cart-button {
+  font-size: 1.5rem;
+  position: relative;
+}
+.cart-button .items-count {
+  --dimension: 1.25rem;
+  width: var(--dimension);
+  height: var(--dimension);
+  position: absolute;
+  top: -5px;
+  right: -10px;
+  background-color: red;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-size: 0.85rem;
+  border-radius: 50%;
+  font-weight: bold;
+}
+.cart-with-items-content-container {
+  position: relative;
+}
+.cart-with-items-content-container .is-clearing-cart-loading-div {
+  position: absolute;
+  background: #0000002e;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+  pointer-events: all;
+}

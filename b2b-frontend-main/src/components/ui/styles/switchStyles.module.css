@@ -1,0 +1,3 @@
+html[dir="rtl"] .thumb[data-state="checked"] {
+  transform: translateY(-0.5px) translateX(-1rem);
+}

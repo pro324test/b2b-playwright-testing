@@ -1,0 +1,17 @@
+.search-and-filter-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  /* align-items: center; */
+  gap: 5rem;
+  padding: 1rem;
+
+  /* background-repeat: no-repeat; */
+}
+.search-and-filter-container.home-page {
+  background-image: url("/assets/images/global/search-section-background.png");
+  min-height: 225px;
+
+  background-position-y: 30px;
+  background-repeat: round;
+}

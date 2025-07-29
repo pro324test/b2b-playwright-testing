@@ -1,0 +1,39 @@
+.container {
+  height: 250px;
+  position: relative;
+}
+.container .x-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: none;
+  cursor: pointer;
+  background: red;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  right: 3%;
+  top: 3%;
+  --dimensions: 25px;
+  width: var(--dimensions);
+  height: var(--dimensions);
+  border-radius: 50%;
+}
+.container .x-button svg {
+  font-size: 1.5rem;
+}
+.container img {
+  object-fit: cover;
+  height: 80%;
+  width: 100%;
+}
+.container input {
+  display: block;
+  height: 20%;
+  outline: none;
+  border: 0 transparent;
+}
+.container input:focus-visible {
+  box-shadow: 0 0 !important;
+}

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Order" ALTER COLUMN "paymentMethod" DROP DEFAULT,
+ALTER COLUMN "subtotal" DROP DEFAULT;

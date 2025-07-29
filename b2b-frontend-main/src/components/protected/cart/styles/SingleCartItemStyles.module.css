@@ -1,0 +1,63 @@
+.outer-container {
+  position: relative;
+}
+.outer-container:not(:last-child) {
+  border-bottom: 1px solid #e9e9e9;
+}
+.outer-container .loader-div {
+  position: absolute;
+  background: #0000002e;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  max-height: 125px;
+}
+
+.container > div:first-child {
+  flex: 3;
+}
+.container img {
+  object-fit: cover;
+  /* height: 60px; */
+  border-radius: 5px;
+  width: 100%;
+  height: 100%;
+}
+.container > div:nth-child(2) {
+  flex: 4;
+}
+.container > div:last-child {
+  flex: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.quantity-handler-div {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  background-color: #e9e9e9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 5px;
+}
+.quantity-handler-div span {
+  margin: 0 0.5rem;
+}
+.quantity-input {
+  text-align: center;
+  background-color: white !important;
+}
+.quantity-input[type="number"]::-webkit-inner-spin-button,
+.quantity-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

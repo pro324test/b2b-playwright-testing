@@ -1,0 +1,8 @@
+.add-to-cart-button {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid grey;
+  padding: 0.5rem;
+  border-radius: 5px;
+}

@@ -1,0 +1,15 @@
+.vendor-item {
+  padding: 0.5rem 1rem;
+  background: #e5e5e5;
+  border: 1px solid #ccc;
+  color: black;
+  transition: 0.3s;
+}
+.vendor-item:hover {
+  background-color: grey;
+  color: white;
+}
+.vendor-item.selected {
+  background-color: red;
+  color: white;
+}

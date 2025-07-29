@@ -1,0 +1,18 @@
+.single-variant-button {
+  background: #f3f4f6;
+  padding: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  border-radius: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: 0.3s;
+}
+.single-variant-button:hover {
+  background: #e5e7eb;
+}
+.single-variant-button.active {
+  background: var(--main-color);
+  color: white;
+}

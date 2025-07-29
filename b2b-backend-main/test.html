@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div class="max-w-4xl mx-auto p-4">
+        <!-- Login Section -->
+        <div id="loginSection" class="space-y-4">
+            <h2 class="text-2xl font-bold">Chat Test</h2>
+            <div class="space-y-2">
+                <input type="text" id="identifier" placeholder="Email/Username" 
+                    class="w-full p-2 border rounded"/>
+                <input type="password" id="password" placeholder="Password" 
+                    class="w-full p-2 border rounded"/>
+                <button id="loginBtn" 
+                    class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                    Login
+                </button>
+            </div>
+            <div id="loginError" class="text-red-500"></div>
+        </div>
+
+        <!-- Chat Section -->
+        <div id="chatSection" class="hidden space-y-4">
+            <div class="flex justify-between items-center bg-gray-100 p-4 rounded">
+                <span id="userInfo" class="font-semibold"></span>
+                <button id="logoutBtn" 
+                    class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                    Logout
+                </button>
+            </div>
+
+            <div class="grid grid-cols-4 gap-4">
+                <!-- Chat List -->
+                <div class="col-span-1 border rounded shadow-sm">
+                    <div class="p-4 border-b">
+                        <h3 class="font-semibold">Your Chats</h3>
+                    </div>
+                    <div id="chatsList" class="space-y-2 p-4 max-h-96 overflow-y-auto"></div>
+                    <div class="p-4 border-t">
+                        <div class="flex gap-2">
+                            <input type="number" id="recipientId" placeholder="User ID" 
+                                class="flex-1 p-2 border rounded"/>
+                            <button id="startChatBtn" 
+                                class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                New
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Messages -->
+                <div class="col-span-3 border rounded shadow-sm">
+                    <div id="activeChatHeader" class="p-4 border-b bg-gray-50"></div>
+                    <div class="p-4">
+                        <div id="messagesList" class="h-96 overflow-y-auto space-y-2 mb-4"></div>
+                        <div id="typingIndicator" class="h-5 text-gray-500 italic"></div>
+                        <div class="flex gap-2">
+                            <input type="text" id="messageInput" placeholder="Type a message..." 
+                                class="flex-1 p-2 border rounded"/>
+                            <button id="sendBtn" 
+                                class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ChatTest {
+            constructor() {
+                this.socket = null;
+                this.token = null;
+                this.currentUser = null;
+                this.currentChatId = null;
+                this.chats = new Map();
+                this.API_URL = 'http://localhost:3000';
+                this.setupUIEvents();
+            }
+
+            setupUIEvents() {
+                document.getElementById('loginBtn').addEventListener('click', () => {
+                    const identifier = document.getElementById('identifier').value;
+                    const password = document.getElementById('password').value;
+                    this.login(identifier, password);
+                });
+
+                document.getElementById('logoutBtn').addEventListener('click', () => {
+                    this.disconnect();
+                    this.showLoginSection();
+                });
+
+                document.getElementById('startChatBtn').addEventListener('click', () => {
+                    const recipientId = document.getElementById('recipientId').value;
+                    this.startChat(Number(recipientId));
+                });
+
+                document.getElementById('sendBtn').addEventListener('click', () => {
+                    this.sendMessage();
+                });
+
+                let typingTimeout;
+                document.getElementById('messageInput').addEventListener('input', () => {
+                    if (this.currentChatId) {
+                        clearTimeout(typingTimeout);
+                        this.sendTypingStatus(true);
+                        typingTimeout = setTimeout(() => this.sendTypingStatus(false), 1000);
+                    }
+                });
+            }
+
+            async login(identifier, password) {
+                try {
+                    const response = await axios.post(`${this.API_URL}/auth/login`, {
+                        identifier,
+                        password
+                    });
+
+                    this.token = response.data.accessToken;
+                    
+                    const userResponse = await axios.get(`${this.API_URL}/auth/me`, {
+                        headers: { Authorization: `Bearer ${this.token}` }
+                    });
+                    
+                    this.currentUser = userResponse.data;
+                    this.showChatSection();
+                    this.initializeSocket();
+                    await this.loadChats();
+                    
+                    document.getElementById('userInfo').textContent = 
+                        `Logged in as: ${this.currentUser.username} (ID: ${this.currentUser.id})`;
+                } catch (error) {
+                    document.getElementById('loginError').textContent = 
+                        error.response?.data?.message || error.message;
+                }
+            }
+
+            async loadChats() {
+                try {
+                    const response = await axios.get(
+                        `${this.API_URL}/chat`,
+                        { headers: { Authorization: `Bearer ${this.token}` } }
+                    );
+                    
+                    const chatsList = document.getElementById('chatsList');
+                    chatsList.innerHTML = '';
+                    
+                    response.data.forEach(chat => {
+                        this.chats.set(chat.id, chat);
+                        const otherUser = chat.user1Id === this.currentUser.id ? chat.user2 : chat.user1;
+                        const lastMessage = chat.messages[0]?.content || 'No messages';
+                        
+                        const chatDiv = document.createElement('div');
+                        chatDiv.className = `p-3 border rounded cursor-pointer hover:bg-gray-50 
+                            ${this.currentChatId === chat.id ? 'bg-blue-50' : ''}`;
+                        chatDiv.onclick = () => this.selectChat(chat.id);
+                        
+                        chatDiv.innerHTML = `
+                            <div class="font-medium">Chat with ${otherUser.username}</div>
+                            <div class="text-sm text-gray-500 truncate">${lastMessage}</div>
+                        `;
+                        
+                        chatsList.appendChild(chatDiv);
+                    });
+                } catch (error) {
+                    this.addSystemMessage(`Error loading chats: ${error.message}`);
+                }
+            }
+
+            async selectChat(chatId) {
+                this.currentChatId = chatId;
+                this.clearMessages();
+                
+                try {
+                    const response = await axios.get(
+                        `${this.API_URL}/chat/${chatId}/messages`,
+                        { headers: { Authorization: `Bearer ${this.token}` } }
+                    );
+                    
+                    const chat = this.chats.get(chatId);
+                    const otherUser = chat.user1Id === this.currentUser.id ? chat.user2 : chat.user1;
+                    
+                    document.getElementById('activeChatHeader').textContent = 
+                        `Chat with ${otherUser.username} (ID: ${otherUser.id})`;
+                    
+                    response.data.reverse().forEach(message => {
+                        const isSent = message.senderId === this.currentUser.id;
+                        this.addMessage(message.content, isSent);
+                    });
+                    
+                    document.querySelectorAll('#chatsList > div').forEach(div => {
+                        div.classList.toggle('bg-blue-50', 
+                            Number(div.dataset.chatId) === chatId);
+                    });
+                } catch (error) {
+                    this.addSystemMessage(`Error loading chat history: ${error.message}`);
+                }
+            }
+
+            async startChat(recipientId) {
+                try {
+                    const response = await axios.post(
+                        `${this.API_URL}/chat`,
+                        { recipientId },
+                        { headers: { Authorization: `Bearer ${this.token}` } }
+                    );
+                    
+                    await this.loadChats();
+                    this.selectChat(response.data.id);
+                    document.getElementById('recipientId').value = '';
+                } catch (error) {
+                    this.addSystemMessage(`Error: ${error.response?.data?.message || error.message}`);
+                }
+            }
+
+            initializeSocket() {
+                if (!this.token || !this.currentUser) return;
+
+                this.socket = io(this.API_URL, {
+                    auth: {
+                        token: this.token,
+                        userId: this.currentUser.id
+                    }
+                });
+
+                this.setupSocketListeners();
+            }
+
+            setupSocketListeners() {
+                if (!this.socket) return;
+
+                this.socket.on('connect', () => {
+                    this.addSystemMessage('Connected to chat server');
+                });
+
+                this.socket.on('newMessage', async (message) => {
+                    if (message.chatId === this.currentChatId) {
+                        this.addMessage(message.content, false);
+                    }
+                    await this.loadChats(); // Refresh chat list to update last message
+                });
+
+                this.socket.on('userTyping', ({ chatId, userId, isTyping }) => {
+                    if (chatId === this.currentChatId) {
+                        const typingIndicator = document.getElementById('typingIndicator');
+                        typingIndicator.textContent = isTyping ? 'User is typing...' : '';
+                    }
+                });
+
+                this.socket.on('userOnline', ({ userId }) => {
+                    this.addSystemMessage(`User ${userId} is online`);
+                });
+
+                this.socket.on('userOffline', ({ userId }) => {
+                    this.addSystemMessage(`User ${userId} is offline`);
+                });
+
+                this.socket.on('error', (error) => {
+                    this.addSystemMessage(`Error: ${error}`);
+                });
+            }
+
+            sendMessage() {
+                if (!this.currentChatId || !this.socket) {
+                    this.addSystemMessage('Please select a chat first');
+                    return;
+                }
+
+                const input = document.getElementById('messageInput');
+                const content = input.value.trim();
+                
+                if (content) {
+                    this.socket.emit('sendMessage', {
+                        chatId: this.currentChatId,
+                        message: { content }
+                    });
+                    
+                    this.addMessage(content, true);
+                    input.value = '';
+                }
+            }
+
+            sendTypingStatus(isTyping) {
+                if (!this.currentChatId || !this.socket) return;
+
+                this.socket.emit('typing', {
+                    chatId: this.currentChatId,
+                    isTyping
+                });
+            }
+
+            showLoginSection() {
+                document.getElementById('loginSection').style.display = 'block';
+                document.getElementById('chatSection').style.display = 'none';
+            }
+
+            showChatSection() {
+                document.getElementById('loginSection').style.display = 'none';
+                document.getElementById('chatSection').style.display = 'block';
+            }
+
+            clearMessages() {
+                document.getElementById('messagesList').innerHTML = '';
+                document.getElementById('activeChatHeader').textContent = '';
+            }
+
+            addMessage(content, isSent) {
+                const messagesList = document.getElementById('messagesList');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `p-2 rounded ${
+                    isSent ? 'bg-blue-100 ml-auto w-fit' : 'bg-gray-100 mr-auto w-fit'
+                }`;
+                messageDiv.textContent = content;
+                messagesList.appendChild(messageDiv);
+                messagesList.scrollTop = messagesList.scrollHeight;
+            }
+
+            addSystemMessage(content) {
+                const messagesList = document.getElementById('messagesList');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'text-center text-gray-500 italic';
+                messageDiv.textContent = content;
+                messagesList.appendChild(messageDiv);
+                messagesList.scrollTop = messagesList.scrollHeight;
+            }
+
+            disconnect() {
+                if (this.socket) {
+                    this.socket.disconnect();
+                    this.socket = null;
+                    this.token = null;
+                    this.currentUser = null;
+                    this.currentChatId = null;
+                    this.chats.clear();
+                }
+            }
+        }
+
+        // Initialize the chat test
+        new ChatTest();
+    </script>
+</body>
+</html>

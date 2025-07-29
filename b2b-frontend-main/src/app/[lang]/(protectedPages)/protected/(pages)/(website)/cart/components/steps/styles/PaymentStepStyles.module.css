@@ -1,0 +1,56 @@
+.container {
+  display: flex;
+  gap: 2rem;
+}
+.heading-label {
+  position: absolute;
+  top: -34px;
+  padding: 0.5rem 1rem;
+  border-radius: 5px 5px 0 0;
+  color: white;
+}
+.heading-label {
+  background-color: var(--main-color);
+}
+
+html[dir="ltr"] .heading-label {
+  left: 10px;
+}
+
+html[dir="rtl"] .heading-label {
+  right: 10px;
+}
+.payment-methods-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: start;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  width: 100%;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 5px;
+}
+.payment-methods-button .circle {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.payment-methods-button.selected .circle {
+  background-color: var(--main-color);
+}
+.cart-summary-container {
+  width: 35%;
+  display: flex;
+  flex-direction: column;
+}
+.cart-summary-container > div:first-child {
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 1rem;
+}

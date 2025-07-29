@@ -1,0 +1,880 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// User Management Models
+model User {
+  id             Int             @id @default(autoincrement())
+  username       String          @unique
+  email          String?          @unique
+  password       String
+  phoneNumber    String         @unique  // Just add this field
+  firstName      String
+  lastName       String
+  role           String          @default("user")
+  isDisabled     Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  carts          Cart[]
+  vendorRequests VendorRequest[]
+  vendor         Vendor?
+  sentChats      Chat[]          @relation("ChatUser1")
+  receivedChats  Chat[]          @relation("ChatUser2")
+  messages       Message[]
+  orders         Order[]
+  addresses      UserAddress[] // Add this line
+  productReviews ProductReview[]
+  shopReviews    ShopReview[]
+  reviewReplies  ReviewReply[]
+  couponUsages   CouponUsage[] // Add this line
+}
+
+// Vendor Related Models
+model Vendor {
+  id                 Int                 @id @default(autoincrement())
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             Int                 @unique
+  isDisabled         Boolean             @default(false)
+  businessName       String?             // name field
+  practicePermitDoc  String?             // صورة من إذن المزاولة
+  licenseDoc         String?             // صورة من الرخصة
+  shops              Shop[]
+  groups             VendorGroup[]
+  moamalatCredential MoamalatCredential?
+  PriceRule          PriceRule[]
+  Coupon             Coupon[]
+}
+
+model VendorGroup {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique
+  description String?
+  vendors     Vendor[]
+  priceRules  PriceRule[]
+}
+
+model VendorRequest {
+  id               Int       @id @default(autoincrement())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           Int
+  status           String    @default("pending")
+  message          String?
+  requestedGroupId Int? // New field for requested vendor group
+  createdAt        DateTime  @default(now())
+  respondedAt      DateTime?
+}
+
+// Shop & Product Models
+model Shop {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  logoUrl     String? // Add this field
+  status      String        @default("pending")
+  vendor      Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendorId    Int
+  products    Product[]
+  banners     Banner[]
+  createdAt   DateTime      @default(now())
+  respondedAt DateTime?
+  orders      Order[]
+  addresses   ShopAddress[] // Add this line
+  reviews     ShopReview[]
+  promotions  Promotion[]
+  cities      ShopCity[]
+  priceRules  PriceRule[]   @relation("ShopPriceRules")
+   // Add these two fields
+  coupons     Coupon[]      // Relation for shopId in Coupon model
+  couponRelations Coupon[]  @relation("CouponToShops") // Relation for many-to-many
+}
+
+model Product {
+  id                   Int                    @id @default(autoincrement())
+  name                 String
+  description          String?
+  basePrice            Decimal                @db.Decimal(10, 2)
+  shop                 Shop                   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId               Int
+  brand                Brand?                 @relation(fields: [brandId], references: [id])
+  brandId              Int?
+  images               ProductImage[]
+  categories           Category[]
+  attributeValues      AttributeValue[]
+  cartItems            CartItem[]
+  inventory            Inventory?
+  priceRules           PriceRule[]
+  status               String                 @default("enabled")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  orderItems           OrderItem[]
+  reviews              ProductReview[]
+  variants             ProductVariant[]
+  freeInPromotions     BogoRule[]             @relation("FreeProduct")
+  applicablePromotions BogoRule[]             @relation("ApplicableToPromotion")
+  citiesOverride       ProductCity[]
+  coupons              Coupon[] // Add this line
+  InventoryReservation InventoryReservation[]
+}
+
+model ProductImage {
+  id           Int     @id @default(autoincrement())
+  path         String
+  caption      String?
+  imageType    String  @default("gallery")
+  displayOrder Int     @default(0)
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId    Int
+}
+
+// Add this model after the Product model
+
+model ProductVariant {
+  id                   Int                    @id @default(autoincrement())
+  product              Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId            Int
+  sku                  String?                @unique
+  quantity             Int                    @default(0)
+  lowStockThreshold    Int                    @default(10)
+  isLowStock           Boolean                @default(false)
+  price                Decimal?               @db.Decimal(10, 2) // New optional price field
+  attributeValues      AttributeValue[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  cartItems            CartItem[]
+  orderItems           OrderItem[]
+  priceRules           PriceRule[] // Add this relation
+  bogoRules BogoRule[]
+
+  InventoryReservation InventoryReservation[]
+
+  @@index([productId])
+}
+
+// Category Models
+model Category {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  status      String     @default("enabled")
+  parent      Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  parentId    Int?
+  children    Category[] @relation("CategoryToCategory")
+  products    Product[]
+  level       Int        @default(0)
+  promotions  BogoRule[] @relation("CategoryPromotions")
+
+  Coupon   Coupon? @relation(fields: [couponId], references: [id])
+  couponId Int?
+}
+
+// Brand Models
+model Brand {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  logo        String?
+  website     String?
+  status      String    @default("enabled")
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// Attribute Models
+model Attribute {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  description String?
+  isEnabled   Boolean          @default(true)
+  values      AttributeValue[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+// Update the AttributeValue model
+
+model AttributeValue {
+  id              Int              @id @default(autoincrement())
+  value           String
+  attribute       Attribute        @relation(fields: [attributeId], references: [id], onDelete: Cascade)
+  hexValue        String? // Add this line
+  attributeId     Int
+  products        Product[]
+  // Add this relation to fix the ProductVariant relationship
+  productVariants ProductVariant[]
+}
+
+// Cart Models
+model Cart {
+  id                Int        @id @default(autoincrement())
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            Int
+  items             CartItem[]
+  isCheckedOut      Boolean    @default(false)
+  checkoutDate      DateTime?
+  paymentMethod     String?
+  notes             String?
+  appliedCouponCode String?
+  couponDiscount    Decimal?   @db.Decimal(10, 2)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+}
+
+// Update the CartItem model
+
+model CartItem {
+  id             Int             @id @default(autoincrement())
+  cart           Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId         Int
+  product        Product         @relation(fields: [productId], references: [id])
+  productId      Int
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+  variantId      Int?
+  quantity       Int
+  basePrice      Decimal         @db.Decimal(10, 2)
+  finalPrice     Decimal         @db.Decimal(10, 2)
+  appliedRuleIds Int[]           @default([]) // Changed from single ID to array
+  createdAt      DateTime        @default(now())
+
+  // Remove this relationship as variants will handle attributes
+  // selectedAttributes AttributeValue[]
+
+  @@index([cartId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+// Order Models
+model Order {
+  id                  Int      @id @default(autoincrement())
+  orderNumber         String   @unique
+  userId              Int
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopId              Int
+  shop                Shop     @relation(fields: [shopId], references: [id])
+  status              String   @default("pending") // pending, confirmed, processing, shipped, delivered, cancelled
+  paymentMethod       String
+  paymentStatus       String   @default("pending") // pending, paid, refunded, failed
+  subtotal            Decimal  @db.Decimal(10, 2)
+  discountAmount      Decimal  @db.Decimal(10, 2) @default(0)
+  shippingAmount      Decimal  @db.Decimal(10, 2) @default(0)
+  totalAmount         Decimal  @db.Decimal(10, 2)
+  paidAmount          Decimal  @db.Decimal(10, 2) @default(0)
+  
+  // Address reference fields
+  userAddressId       Int?
+  userAddress         UserAddress? @relation(fields: [userAddressId], references: [id], onDelete: SetNull)
+  
+  // Shipping address snapshot fields
+  shippingStreet      String?
+  shippingCity        String?
+  shippingNotes       String?
+  
+  // Existing coupon fields
+  couponCode          String?
+  couponDiscount      Decimal? @db.Decimal(10, 2)
+  couponId            Int?
+  coupon              Coupon?  @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  
+  notes               String?
+  paymentDueDate      DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  items               OrderItem[]
+  payments            Payment[]
+  productReviews      ProductReview[]
+  shopReviews         ShopReview[]
+  couponUsages        CouponUsage[]
+
+  // Indices
+  @@index([userId])
+  @@index([shopId])
+  @@index([orderNumber])
+  @@index([couponId])
+  @@index([userAddressId]) // New index for address lookup
+}
+
+// Update the OrderItem model
+
+model OrderItem {
+  id             Int             @id @default(autoincrement())
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId        Int
+  product        Product         @relation(fields: [productId], references: [id])
+  productId      Int
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
+  variantId      Int?
+  productName    String // Snapshot of product name
+  quantity       Int
+  basePrice      Decimal         @db.Decimal(10, 2)
+  finalPrice     Decimal         @db.Decimal(10, 2)
+  appliedRuleIds Int[]           @default([]) // Changed from single ID to array
+  promotionInfo  String?
+  attributes     Json? // Store selected attributes as JSON to keep snapshot
+  createdAt      DateTime        @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model Payment {
+  id            Int       @id @default(autoincrement())
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId       Int
+  amount        Decimal   @db.Decimal(10, 2)
+  paymentMethod String // bank_transfer, credit_card, etc.
+  transactionId String?
+  status        String    @default("pending") // pending, completed, failed
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([orderId])
+}
+
+// Inventory Model
+model Inventory {
+  id                Int      @id @default(autoincrement())
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId         Int      @unique
+  quantity          Int
+  lowStockThreshold Int      @default(0)
+  isLowStock        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PriceRule {
+  id            Int              @id @default(autoincrement())
+  name          String
+  type          String // 'discount', 'fixed_price'
+  value         Decimal?         @db.Decimal(10, 2)
+  minQuantity   Int              @default(1)
+  maxQuantity   Int?
+  startDate     DateTime?
+  endDate       DateTime?
+  status        String           @default("enabled")
+  products      Product[]
+  variants      ProductVariant[]
+  vendorGroup   VendorGroup?     @relation(fields: [vendorGroupId], references: [id])
+  vendorGroupId Int?
+
+  // Ownership tracking fields
+  creatorType String // "admin" or "user"
+  creatorId   Int // ID in either Admin or User table
+
+  // Add this explicit vendor relationship
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+  vendorId Int?
+
+  // Add this relation
+  shops Shop[] @relation("ShopPriceRules")
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  // Add indices for faster querying
+  @@index([creatorType, creatorId])
+  @@index([status])
+  @@index([vendorId])
+}
+
+model Chat {
+  id          Int       @id @default(autoincrement())
+  user1Id     Int
+  user1       User      @relation("ChatUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id     Int
+  user2       User      @relation("ChatUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  messages    Message[]
+  isArchived1 Boolean   @default(false) // User1 archived the chat
+  isArchived2 Boolean   @default(false) // User2 archived the chat
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+
+  @@index([user1Id])
+  @@index([user2Id])
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  content   String
+  chatId    Int
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderId  Int
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  mediaUrl  String? // For storing URLs to images/files
+  isRead    Boolean  @default(false)
+  isDeleted Boolean  @default(false) // Instead of actually deleting messages
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([chatId])
+  @@index([senderId])
+}
+
+model BannerType {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  width       Int
+  height      Int
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  banners     Banner[]
+}
+
+model Banner {
+  id           Int        @id @default(autoincrement())
+  title        String
+  description  String?
+  imageUrl     String
+  link         String?
+  startDate    DateTime?
+  endDate      DateTime?
+  status       String     @default("active")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now())
+  bannerTypeId Int
+  shopId       Int
+  bannerType   BannerType @relation(fields: [bannerTypeId], references: [id])
+  shop         Shop       @relation(fields: [shopId], references: [id])
+}
+
+model City {
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  userAddresses UserAddress[] // Add this line
+  shopAddresses ShopAddress[] // Add this line
+  shops         ShopCity[]
+  products      ProductCity[]
+}
+
+model MoamalatCredential {
+  id         Int      @id @default(autoincrement())
+  vendor     Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendorId   Int      @unique
+  merchantId String
+  terminalId String
+  secureKey  String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// If SystemSetting doesn't exist, add it
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+// Add these models to your schema
+
+model UserAddress {
+  id             Int     @id @default(autoincrement())
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         Int
+  street         String
+  googleMapsLink String?
+  latitude       Float?
+  longitude      Float?
+  notes          String?
+  addressType    String  @default("home")
+  isDefault      Boolean @default(false)
+
+  city   City @relation(fields: [cityId], references: [id])
+  cityId Int
+
+   // Add this relation field to reference back to Order
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  //@@unique([userId, isDefault], name: "unique_user_default_address")
+}
+
+model ShopAddress {
+  id             Int     @id @default(autoincrement())
+  shop           Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId         Int
+  street         String
+  googleMapsLink String?
+  latitude       Float?
+  longitude      Float?
+  notes          String?
+  isDefault      Boolean @default(false)
+
+  city   City @relation(fields: [cityId], references: [id])
+  cityId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+}
+
+// Add to your Prisma schema
+
+// Review settings model
+model ReviewSettings {
+  id                          Int      @id @default(autoincrement())
+  requirePurchaseVerification Boolean  @default(false)
+  showVerificationBadge       Boolean  @default(true)
+  requireRating               Boolean  @default(true)
+  requireText                 Boolean  @default(false)
+  moderationEnabled           Boolean  @default(false)
+  maxImagesPerReview          Int      @default(3)
+  defaultStatus               String   @default("approved") // "pending", "approved"
+  autoApproveVerifiedOnly     Boolean  @default(false)
+  moderateNegativeOnly        Boolean  @default(false)
+  negativeBelowRating         Int      @default(2) // Ratings below this are considered negative
+  mediaEnabled                Boolean  @default(true)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+}
+
+// Product review model
+model ProductReview {
+  id                 Int           @id @default(autoincrement())
+  product            Product       @relation(fields: [productId], references: [id])
+  productId          Int
+  user               User          @relation(fields: [userId], references: [id])
+  userId             Int
+  order              Order?        @relation(fields: [orderId], references: [id])
+  orderId            Int?
+  rating             Int? // Nullable to allow text-only reviews
+  title              String?
+  content            String? // Nullable to allow rating-only reviews
+  status             String        @default("pending") // "pending", "approved", "rejected"
+  isVerifiedPurchase Boolean       @default(false)
+  helpfulVotes       Int           @default(0)
+  images ReviewImage[] // Add this line
+  replies            ReviewReply[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @default(now())
+
+  @@index([productId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([status])
+}
+
+// Shop review model
+model ShopReview {
+  id                 Int           @id @default(autoincrement())
+  shop               Shop          @relation(fields: [shopId], references: [id])
+  shopId             Int
+  user               User          @relation(fields: [userId], references: [id])
+  userId             Int
+  order              Order?        @relation(fields: [orderId], references: [id])
+  orderId            Int?
+  rating             Int? // Nullable to allow text-only reviews
+  title              String?
+  content            String? // Nullable to allow rating-only reviews
+  status             String        @default("pending") // "pending", "approved", "rejected"
+  isVerifiedPurchase Boolean       @default(false)
+  helpfulVotes       Int           @default(0)
+  images ReviewImage[] // Add this line
+  replies            ReviewReply[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @default(now())
+
+  @@index([shopId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([status])
+}
+
+// Modified schema for the ReviewReply model
+model ReviewReply {
+  id        Int      @id @default(autoincrement())
+  content   String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  // Relations - one of these must be set (we'll handle this in application code)
+  productReview   ProductReview? @relation(fields: [productReviewId], references: [id], onDelete: Cascade)
+  productReviewId Int?
+  shopReview      ShopReview?    @relation(fields: [shopReviewId], references: [id], onDelete: Cascade)
+  shopReviewId    Int?
+
+  @@index([productReviewId])
+  @@index([shopReviewId])
+  @@index([userId])
+}
+
+model Promotion {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  type        String // 'bogo_same', 'bogo_different', 'buy_x_get_y_free'
+  status      String    @default("enabled") // enabled, disabled
+  startDate   DateTime?
+  endDate     DateTime?
+
+  // Relations
+  shop     Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId   Int
+  bogoRule BogoRule?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model BogoRule {
+  id Int @id @default(autoincrement())
+
+  // Core configuration
+  buyQuantity Int // How many items customer must buy
+  getQuantity Int // How many items customer gets free/discounted
+
+  // Discount configuration (for discounted items, not free)
+  discountPercent Int? // If not 100% (free), what percentage discount
+
+  // Target configuration
+  sameProduct Boolean @default(true) // If true, get same product free
+
+  // For different product BOGO (when sameProduct is false)
+  freeProductId Int?
+  freeProduct   Product? @relation("FreeProduct", fields: [freeProductId], references: [id])
+
+  // Relationship with promotion
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  promotionId Int       @unique
+
+  // Target configuration - which products this rule applies to
+  applicableProducts   Product[]  @relation("ApplicableToPromotion")
+  applicableCategories Category[] @relation("CategoryPromotions")
+  applicableVariants   ProductVariant[] // Add this line
+
+  // Variant-specific settings
+  applyToAllVariants Boolean @default(true) // Whether this applies to all variants
+
+  // Limits
+  maxRedemptionsPerOrder Int? // Max number of free items per order (null = unlimited)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([promotionId])
+}
+
+// Many-to-many relationship between Shop and City
+model ShopCity {
+  id        Int      @id @default(autoincrement())
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId    Int
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  cityId    Int
+  createdAt DateTime @default(now())
+
+  @@unique([shopId, cityId])
+  @@index([shopId])
+  @@index([cityId])
+}
+
+// Many-to-many relationship between Product and City with override option
+model ProductCity {
+  id          Int      @id @default(autoincrement())
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId   Int
+  city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  cityId      Int
+  isAvailable Boolean  @default(true) // true = available in this city, false = not available
+  isOverride  Boolean  @default(false) // If true, this overrides shop settings
+  createdAt   DateTime @default(now())
+
+  @@unique([productId, cityId])
+  @@index([productId])
+  @@index([cityId])
+}
+
+// Add to schema.prisma
+
+model Coupon {
+  id                Int       @id @default(autoincrement())
+  code              String    @unique
+  type              String // 'percentage', 'fixed_amount', 'free_shipping'
+  value             Decimal   @db.Decimal(10, 2)
+  minOrderAmount    Decimal?  @db.Decimal(10, 2)
+  maxDiscountAmount Decimal?  @db.Decimal(10, 2)
+  startDate         DateTime?
+  endDate           DateTime?
+  usageLimit        Int? // Total number of times the coupon can be used
+  usageCount        Int       @default(0)
+  perUserLimit      Int? // How many times each user can use this coupon
+  status            String    @default("enabled") // 'enabled', 'disabled'
+  description       String?
+
+  // New fields
+  creatorId   Int
+  creatorType String // 'admin' or 'vendor'  
+  vendorId    Int?
+  vendor      Vendor? @relation(fields: [vendorId], references: [id])
+
+  // Relations
+  shopId Int?
+  shop   Shop? @relation(fields: [shopId], references: [id])
+  shops Shop[] @relation("CouponToShops")
+
+  // Many-to-many relationships for targeting specific products/categories
+  applicableProducts   Product[]
+  applicableCategories Category[]
+
+  // Usage records
+  usages CouponUsage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Order     Order[]
+
+  @@index([code])
+  @@index([shopId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+// Track individual coupon usage
+model CouponUsage {
+  id       Int      @id @default(autoincrement())
+  coupon   Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  couponId Int
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   Int
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId  Int
+  usedAt   DateTime @default(now())
+
+  @@unique([couponId, orderId])
+  @@index([couponId])
+  @@index([userId])
+  @@index([orderId])
+}
+
+model InventoryReservation {
+  id          Int      @id @default(autoincrement())
+  productId   Int
+  variantId   Int?
+  quantity    Int
+  reservedFor String // Cart ID, session ID, etc.
+  expiresAt   DateTime
+  isReleased  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  // Relations
+  product Product         @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+
+  // Indexes for better query performance
+  @@index([productId])
+  @@index([variantId])
+  @@index([expiresAt])
+  @@index([isReleased])
+  @@index([reservedFor])
+}
+
+// Content Management Types
+model ContentType {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  contents    Content[]
+}
+
+// Content items
+model Content {
+  id              Int         @id @default(autoincrement())
+  title           String
+  description     String?     @db.Text
+  typeId          Int
+  type            ContentType @relation(fields: [typeId], references: [id])
+  backgroundColor String?
+  extraData       Json?
+  link            String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @default(now())
+  createdById     Int?        // Optional: track who created the content
+  isPublished     Boolean     @default(false)
+  publishedAt     DateTime?
+  images          ContentImage[]
+}
+
+// In the ContentImage model, remove caption and altText fields
+model ContentImage {
+  id           Int      @id @default(autoincrement())
+  contentId    Int
+  imageUrl     String
+  // Remove caption and altText fields
+  displayOrder Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  content      Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+}
+
+// Add this slider model as a single table
+
+model Slider {
+  id           Int      @id @default(autoincrement())
+  imageUrl     String
+  displayOrder Int      @default(1)
+  link         String?
+  extraData    Json?    // For storing additional configurable data
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([displayOrder])
+  @@index([isActive])
+}
+
+// Add to your schema.prisma
+model ReviewImage {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String
+  createdAt DateTime @default(now())
+  
+  // Relations - one of these must be set
+  productReview   ProductReview? @relation(fields: [productReviewId], references: [id], onDelete: Cascade)
+  productReviewId Int?
+  shopReview      ShopReview?    @relation(fields: [shopReviewId], references: [id], onDelete: Cascade)
+  shopReviewId    Int?
+
+  @@index([productReviewId])
+  @@index([shopReviewId])
+}
+
+// Add OTP Verification model
+model OtpVerification {
+  id          String    @id @default(uuid())
+  phoneNumber String
+  otpCode     String
+  type        String    // REGISTER, LOGIN, PASSWORD_RESET
+  isVerified  Boolean   @default(false)
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+
+  @@index([phoneNumber, type])
+  @@index([phoneNumber, otpCode, type])
+}

@@ -1,0 +1,13 @@
+.container {
+  /* background-color: var(--main-color); */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+  background-image: url("/assets/images/global/footer-background.jpg");
+  background-repeat: no-repeat;
+  background-size: cover;
+  padding-left: 16rem;
+  padding-right: 16rem;
+}

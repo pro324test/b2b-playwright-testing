@@ -1,0 +1,6 @@
+html[theme="dark"] {
+  --dashboard-side-menu-background-color: #1d1d1d;
+}
+html {
+  --dashboard-side-menu-background-color: white;
+}

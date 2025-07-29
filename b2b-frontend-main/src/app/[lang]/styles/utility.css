@@ -1,0 +1,58 @@
+.padding-x {
+  padding-left: 5rem;
+  padding-right: 5rem;
+}
+.main-link {
+  color: #007bff;
+  border-bottom: 1px solid #007bff;
+}
+.text-main-color {
+  color: var(--main-color);
+}
+.bg-main-color {
+  background-color: var(--main-color);
+}
+.hover-bg-darker-main-color:hover {
+  background-color: var(--darker-main-color);
+}
+.cutted-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bg-color {
+  background-color: var(--bg-color);
+}
+.text-beige-color {
+  color: var(--beige-color);
+}
+.text-main-color {
+  color: var(--main-color);
+}
+.bg-beige-color {
+  background-color: var(--beige-color);
+}
+.bg-main-color {
+  background-color: var(--main-color);
+}
+.border-main-color {
+  border-color: var(--main-color);
+}
+.products-grid-container {
+  /* "grid grid-cols-[repeat(auto-fill,_minmax(200px,_1fr))] gap-8 mt-4" */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 2rem;
+  margin-top: 1rem;
+}
+.main-button {
+  background-color: var(--main-color);
+  color: white;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  transition: 0.3s;
+}
+.main-button:hover {
+  background-color: var(--dark-main-color);
+}
