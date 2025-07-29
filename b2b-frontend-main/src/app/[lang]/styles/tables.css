@@ -1,0 +1,58 @@
+table.custom-table {
+  overflow: hidden;
+  width: 100%;
+}
+table.custom-table thead tr {
+  background-color: #e7e7e7;
+}
+table.custom-table th,
+table.custom-table td {
+  padding: 1rem 0.5rem;
+  text-align: center;
+}
+table.custom-table tbody tr:not(:last-child) {
+  border-bottom-width: 1px !important;
+  border-color: #e5e5e5;
+}
+table.custom-table tbody tr {
+  transition: 0.3s;
+}
+table.custom-table tbody tr {
+  background-color: white;
+}
+table.custom-table tbody tr.unread {
+  font-weight: bold;
+}
+table.custom-table tbody tr.read {
+  background-color: white;
+  font-weight: 300;
+}
+
+/* start for status specifc tds */
+.custom-table .status {
+  padding: 0.5rem;
+  text-align: center;
+  color: white;
+}
+.custom-table .status.accept {
+  background-color: green;
+}
+.custom-table .status.eject {
+  background-color: red;
+}
+.custom-table .status.pending {
+  background-color: #cdcd00;
+}
+.custom-table button.accept,
+.custom-table button.reject {
+  padding: 0.25rem 1rem;
+  color: white;
+}
+.custom-table button.accept {
+  background-color: green;
+}
+.custom-table button.reject {
+  background-color: red;
+}
+
+/* end for status specifc tds */

@@ -1,0 +1,24 @@
+.container span.status {
+  padding: 0.5rem;
+  text-align: center;
+  color: white;
+}
+.container span.status.accept {
+  background-color: green;
+}
+.container span.status.eject {
+  background-color: red;
+}
+.container span.status.pending {
+  background-color: #cdcd00;
+}
+.container button {
+  padding: 0.25rem 1rem;
+  color: white;
+}
+.container button.accept {
+  background-color: green;
+}
+.container button.reject {
+  background-color: red;
+}

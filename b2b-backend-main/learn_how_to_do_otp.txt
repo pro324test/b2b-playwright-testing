@@ -1,0 +1,456 @@
+look we gonna add the otp also thing look learn from this code to know what to do 
+
+// src/modules/sms/sms.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import { SendSmsOptions, SmsResponse, SmsType, SmsTemplate } from './interfaces/sms.interface';
+import { SmsMessages } from './sms-messages.constants';
+
+@Injectable()
+export class SmsService {
+  private readonly logger = new Logger(SmsService.name);
+  private readonly apiToken: string;
+  private readonly senderId: string;
+  private readonly defaultType: SmsType;
+  private readonly apiUrl: string;
+  private readonly countryCode: string = '218'; // Default country code for Libya
+
+  constructor(private configService: ConfigService) {
+    this.apiToken = this.configService.get<string>('app.SmsSettings.SmsApiToken') || '';
+    this.senderId = this.configService.get<string>('app.SmsSettings.SenderId') || '';
+    this.defaultType = (this.configService.get<string>('app.SmsSettings.Type') as SmsType) || SmsType.UNICODE;
+    this.apiUrl = this.configService.get<string>('app.SmsSettings.Url') || '';
+
+    // Log configuration for debugging
+    this.logger.log(`SMS Service initialized with URL: ${this.apiUrl}`);
+    this.logger.log(`Sender ID: ${this.senderId}`);
+    
+    if (!this.apiToken || !this.senderId || !this.apiUrl) {
+      this.logger.error('SMS settings are not properly configured!');
+    }
+  }
+
+  /**
+   * Format phone number for SMS API
+   * - Add country code if missing
+   * - Remove leading zero if present
+   */
+  private formatPhoneNumber(phoneNumber: string): string {
+    // Remove any spaces or special characters
+    phoneNumber = phoneNumber.replace(/\s+/g, '').replace(/[^\d]/g, '');
+    
+    // Remove leading zero if present
+    if (phoneNumber.startsWith('0')) {
+      phoneNumber = phoneNumber.substring(1);
+    }
+    
+    // Add country code if missing
+    if (!phoneNumber.startsWith(this.countryCode)) {
+      phoneNumber = this.countryCode + phoneNumber;
+    }
+    
+    return phoneNumber;
+  }
+
+  /**
+   * Send SMS to a single recipient or multiple recipients
+   */
+  async sendSms(options: SendSmsOptions): Promise<SmsResponse> {
+    try {
+      const { recipient, message, senderId, type, scheduleTime, dltTemplateId } = options;
+
+      // Format recipient(s) for API
+      let formattedRecipient: string;
+      
+      if (Array.isArray(recipient)) {
+        // Format each phone number in the array
+        formattedRecipient = recipient
+          .map(number => this.formatPhoneNumber(number))
+          .join(',');
+      } else {
+        // Format single phone number
+        formattedRecipient = this.formatPhoneNumber(recipient);
+      }
+
+      const payload = {
+        api_token: this.apiToken,
+        recipient: formattedRecipient,
+        sender_id: senderId || this.senderId,
+        type: type || this.defaultType,
+        message,
+        ...(scheduleTime && { schedule_time: scheduleTime.toISOString().slice(0, 16).replace('T', ' ') }),
+        ...(dltTemplateId && { dlt_template_id: dltTemplateId })
+      };
+
+      // Log the request (without sensitive information)
+      const logPayload = { 
+        ...payload, 
+        api_token: '[HIDDEN]',
+        recipient: formattedRecipient // Log the formatted number for debugging
+      };
+      this.logger.log(`Sending SMS: ${JSON.stringify(logPayload)}`);
+
+      const response = await axios.post(this.apiUrl, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      // Log the response (success case)
+      this.logger.log(`SMS sent successfully: ${JSON.stringify(response.data)}`);
+
+      return {
+        success: true,
+        data: response.data,
+        messageId: response.data?.id || response.data?.message_id,
+        statusCode: response.status,
+        status: 'success'
+      };
+    } catch (error) {
+      // Log the error
+      this.logger.error(`Failed to send SMS: ${error.message}`, error.stack);
+
+      return {
+        success: false,
+        message: `Failed to send SMS: ${error.message}`,
+        statusCode: error.response?.status || 500,
+        status: 'error'
+      };
+    }
+  }
+
+  /**
+   * Helper method to generate OTP
+   */
+  generateOTP(length = 6): string {
+    const digits = '0123456789';
+    let OTP = '';
+    for (let i = 0; i < length; i++) {
+      OTP += digits[Math.floor(Math.random() * 10)];
+    }
+    return OTP;
+  }
+
+  /**
+   * Send OTP SMS with language support
+   * @param phoneNumber Phone number to send OTP to
+   * @param otp Optional OTP code (if not provided, one will be generated)
+   * @param lang Language for the message ('ar' or 'en', defaults to 'ar')
+   */
+  async sendOTP(phoneNumber: string, otp?: string, lang: string = 'ar'): Promise<SmsResponse> {
+    const generatedOTP = otp || this.generateOTP();
+    
+    return this.sendTemplatedSms(
+      phoneNumber,
+      SmsTemplate.OTP,
+      { otp: generatedOTP },
+      lang
+    );
+  }
+
+  /**
+   * Method to use templates for different SMS types with language support
+   * @param recipient Phone number(s) to send SMS to
+   * @param template Template type to use
+   * @param params Parameters to replace in template
+   * @param lang Language for the message ('ar' or 'en', defaults to 'ar')
+   */
+  async sendTemplatedSms(
+    recipient: string | string[], 
+    template: SmsTemplate, 
+    params: Record<string, string>,
+    lang: string = 'ar'
+  ): Promise<SmsResponse> {
+    const templateMessage = this.getTemplateMessage(template, params, lang);
+    
+    return this.sendSms({
+      recipient,
+      message: templateMessage,
+      type: SmsType.UNICODE // Using UNICODE for Arabic text
+    });
+  }
+
+  /**
+   * Generate message from template with language support
+   * @param template Template type to use
+   * @param params Parameters to replace in template
+   * @param lang Language for the message ('ar' or 'en', defaults to 'ar')
+   */
+  private getTemplateMessage(
+    template: SmsTemplate, 
+    params: Record<string, string>,
+    lang: string = 'ar'
+  ): string {
+    // Use 'ar' as fallback if language not supported
+    const language = ['ar', 'en'].includes(lang) ? lang : 'ar';
+    
+    // Get template text based on template type and language
+    let templateText = '';
+    switch (template) {
+      case SmsTemplate.OTP:
+        templateText = SmsMessages.TEMPLATES.OTP[language];
+        break;
+      case SmsTemplate.WELCOME:
+        templateText = SmsMessages.TEMPLATES.WELCOME[language];
+        break;
+      case SmsTemplate.ORDER_CONFIRMATION:
+        templateText = SmsMessages.TEMPLATES.ORDER_CONFIRMATION[language];
+        break;
+      case SmsTemplate.PASSWORD_RESET:
+        templateText = SmsMessages.TEMPLATES.PASSWORD_RESET[language];
+        break;
+      case SmsTemplate.ACCOUNT_UPDATE:
+        templateText = SmsMessages.TEMPLATES.ACCOUNT_UPDATE[language];
+        break;
+      case SmsTemplate.PAYMENT_CONFIRMATION:
+        templateText = SmsMessages.TEMPLATES.PAYMENT_CONFIRMATION[language];
+        break;
+      case SmsTemplate.DELIVERY_UPDATE:
+        templateText = SmsMessages.TEMPLATES.DELIVERY_UPDATE[language];
+        break;
+      default:
+        // If no template found, return empty string
+        return '';
+    }
+    
+    // Replace template parameters with actual values
+    return this.replaceTemplateParams(templateText, params);
+  }
+  
+  /**
+   * Replace template parameters in the message
+   * @param template Template text with {{param}} placeholders
+   * @param params Key-value pairs to replace in the template
+   */
+  private replaceTemplateParams(template: string, params: Record<string, string>): string {
+    let result = template;
+    
+    for (const [key, value] of Object.entries(params)) {
+      result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    }
+    
+    return result;
+  }
+} 
+
+// src/modules/otp/otp.service.ts
+import { Injectable, Logger, BadRequestException, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { SmsService } from '../sms/sms.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { SmsTemplate } from '../sms/interfaces/sms.interface';
+import { OtpMessages } from './otp-messages.constants';
+
+@Injectable()
+export class OtpService {
+  private readonly logger = new Logger(OtpService.name);
+
+  constructor(
+    private readonly smsService: SmsService,
+    private readonly prisma: PrismaService
+  ) {}
+
+  /**
+   * Generate and send OTP
+   * @param phoneNumber The phone number to send OTP to
+   * @param type The type of OTP verification
+   * @param lang Language for the SMS (ar or en)
+   */
+  async generateAndSendOTP(
+    phoneNumber: string, 
+    type: 'REGISTER' | 'PASSWORD_RESET' | 'LOGIN' = 'LOGIN',
+    lang: string = 'ar' // Add language parameter with Arabic as default
+  ): Promise<boolean> {
+    try {
+      // Generate OTP
+      const otp = this.smsService.generateOTP();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiration
+
+      // Save OTP in database
+      await this.prisma.otpVerification.create({
+        data: {
+          phoneNumber,
+          otpCode: otp,
+          type,
+          expiresAt,
+          attempts: 0
+        }
+      });
+
+      // Send OTP via SMS with language preference
+      const response = await this.smsService.sendTemplatedSms(
+        phoneNumber,
+        SmsTemplate.OTP,
+        { otp },
+        lang // Pass the language parameter
+      );
+
+      if (!response.success) {
+        throw new InternalServerErrorException({
+          success: false,
+          message: OtpMessages.ERROR.OTP_SEND_FAILED,
+          statusCode: response.statusCode
+        });
+      }
+
+      return response.success;
+    } catch (error) {
+      this.logger.error(`Failed to generate and send OTP: ${error.message}`, error.stack);
+      
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException({
+        success: false,
+        message: OtpMessages.ERROR.OTP_GENERATION_ERROR,
+        statusCode: 500
+      });
+    }
+  }
+
+  /**
+   * Verify OTP
+   */
+  async verifyOTP(phoneNumber: string, otpCode: string, type: 'REGISTER' | 'PASSWORD_RESET' | 'LOGIN' = 'LOGIN'): Promise<boolean> {
+    try {
+      const otpVerification = await this.prisma.otpVerification.findFirst({
+        where: {
+          phoneNumber,
+          otpCode,
+          type,
+          expiresAt: { gt: new Date() },
+          isVerified: false,
+          attempts: { lt: 3 } // Maximum 3 attempts
+        }
+      });
+
+      if (!otpVerification) {
+        // Increment attempts for failed verifications
+        await this.prisma.otpVerification.updateMany({
+          where: { phoneNumber, type, isVerified: false },
+          data: { attempts: { increment: 1 } }
+        });
+        
+        throw new UnauthorizedException({
+          success: false,
+          message: OtpMessages.ERROR.OTP_INVALID,
+          statusCode: 401
+        });
+      }
+
+      // Mark OTP as verified
+      await this.prisma.otpVerification.update({
+        where: { id: otpVerification.id },
+        data: { isVerified: true, verifiedAt: new Date() }
+      });
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to verify OTP: ${error.message}`, error.stack);
+      
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException({
+        success: false,
+        message: OtpMessages.ERROR.OTP_VERIFICATION_ERROR,
+        statusCode: 500
+      });
+    }
+  }
+
+  /**
+   * Validate OTP without marking it as used
+   */
+  async validateOTP(phoneNumber: string, otpCode: string, type: 'REGISTER' | 'PASSWORD_RESET' | 'LOGIN' = 'LOGIN'): Promise<boolean> {
+    try {
+      const otpVerification = await this.prisma.otpVerification.findFirst({
+        where: {
+          phoneNumber,
+          otpCode,
+          type,
+          expiresAt: { gt: new Date() },
+          isVerified: false,
+          attempts: { lt: 3 } // Maximum 3 attempts
+        }
+      });
+
+      if (!otpVerification) {
+        throw new UnauthorizedException({
+          success: false,
+          message: OtpMessages.ERROR.OTP_INVALID,
+          statusCode: 401
+        });
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to validate OTP: ${error.message}`, error.stack);
+      
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException({
+        success: false,
+        message: OtpMessages.ERROR.OTP_VERIFICATION_ERROR,
+        statusCode: 500
+      });
+    }
+  }
+
+  /**
+   * Invalidate any existing OTPs for a phone number and type
+   */
+  async invalidateExistingOTPs(phoneNumber: string, type: 'REGISTER' | 'PASSWORD_RESET' | 'LOGIN'): Promise<void> {
+    try {
+      await this.prisma.otpVerification.updateMany({
+        where: { 
+          phoneNumber, 
+          type,
+          isVerified: false
+        },
+        data: { 
+          expiresAt: new Date() // Expire any existing codes
+        }
+      });
+    } catch (error) {
+      this.logger.error(`Failed to invalidate OTPs: ${error.message}`, error.stack);
+      
+      throw new InternalServerErrorException({
+        success: false,
+        message: OtpMessages.ERROR.OTP_INVALIDATION_ERROR,
+        statusCode: 500
+      });
+    }
+  }
+} 
+  SmsSettings: {
+    SmsApiToken: process.env.SMS_API_TOKEN || '101|legAFVE0MdYdtbessdLTEz8wUIDx80MLeV0J3NwM',
+    SenderId: process.env.SMS_SENDER_ID || 'Becom-Ftech',
+    Type: process.env.SMS_TYPE || 'unicode',
+    Url: process.env.SMS_URL || 'https://isend.com.ly/api/http/sms/send'
+  },
+
+  
+model OtpVerification {
+  id          String    @id @default(uuid())
+  phoneNumber String
+  otpCode     String
+  type        String // REGISTER, LOGIN, PASSWORD_RESET
+  isVerified  Boolean   @default(false)
+  attempts    Int       @default(0)
+  expiresAt   DateTime
+  verifiedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([phoneNumber, type])
+  @@index([phoneNumber, otpCode, type])
+} 
+please 
+
+look there is a lot of things that are not in my codebase in the code that i give it to you i just want you to know how my sms providers works 

@@ -1,0 +1,7 @@
+.container {
+  /* background: linear-gradient(to bottom, var(--main-color), #fff); */
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+  margin: 2rem 0;
+  border-top: 1px solid #ccc;
+}
